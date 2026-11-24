@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="description" content="Mahmoud Tesla S: engine sounds that follow your GPS speed." />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#0b0d12" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Mahmoud Tesla S · Engine Sound</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <h1 class="brand">Mahmoud <span>Tesla S</span></h1>
+      <p class="tagline">Engine Sound</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel cockpit" aria-labelledby="cockpit-title">
+        <h2 id="cockpit-title" class="visually-hidden">Gauges</h2>
+        <div class="gauge">
+          <svg class="gauge__dial" viewBox="0 0 200 200" aria-hidden="true">
+            <path
+              class="gauge__track"
+              d="M 43.43 156.57 A 80 80 0 1 1 156.57 156.57"
+              pathLength="1000"
+            />
+            <path
+              id="gauge-redline"
+              class="gauge__redline"
+              d="M 43.43 156.57 A 80 80 0 1 1 156.57 156.57"
+              pathLength="1000"
+            />
+            <path
+              id="gauge-fill"
+              class="gauge__fill"
+              d="M 43.43 156.57 A 80 80 0 1 1 156.57 156.57"
+              pathLength="1000"
+            />
+            <g id="gauge-ticks" class="gauge__ticks"></g>
+            <text class="gauge__scale" x="100" y="182">×1000 rpm</text>
+          </svg>
+          <div class="readout">
+            <output id="speed" class="readout__speed" aria-label="Speed in kilometres per hour">0</output>
+            <span id="speed-unit" class="readout__unit">km/h</span>
+            <span class="readout__gear-row">
+              <span class="readout__label">Gear</span>
+              <output id="gear" class="readout__gear">N</output>
+            </span>
+            <span class="readout__rpm"><output id="rpm">0</output> rpm</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel controls" aria-labelledby="controls-title">
+        <h2 id="controls-title">Controls</h2>
+        <button id="power" class="btn btn--power" type="button" aria-pressed="false">
+          Start engine
+        </button>
+
+        <fieldset class="choice">
+          <legend>Speed source</legend>
+          <div class="choice__options">
+            <label class="choice__option">
+              <input type="radio" name="mode" value="gps" checked />
+              <span>GPS drive</span>
+            </label>
+            <label class="choice__option">
+              <input type="radio" name="mode" value="demo" />
+              <span>Demo drive</span>
+            </label>
+            <label class="choice__option">
+              <input type="radio" name="mode" value="test" />
+              <span>Test drive</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div id="pedals" class="pedals" hidden>
+          <button
+            id="brake"
+            class="btn btn--pedal btn--brake"
+            type="button"
+            aria-pressed="false"
+            aria-keyshortcuts="ArrowDown S"
+            disabled
+          >
+            Brake
+          </button>
+          <button
+            id="gas"
+            class="btn btn--pedal btn--gas"
+            type="button"
+            aria-pressed="false"
+            aria-keyshortcuts="ArrowUp W"
+            disabled
+          >
+            Gas
+          </button>
+        </div>
+
+        <button id="rev" class="btn btn--rev" type="button" aria-pressed="false" disabled>
+          Hold to rev
+        </button>
+
+        <div class="volume">
+          <label for="volume">Volume</label>
+          <input
+            id="volume"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="60"
+            aria-describedby="volume-hint"
+          />
+          <button id="mute" class="btn btn--small" type="button" aria-pressed="false">Mute</button>
+        </div>
+        <p id="volume-hint" class="hint">Turn up the car's media volume as well.</p>
+
+        <p id="status" class="status" role="status" aria-live="polite" data-tone="info"></p>
+      </section>
+
+      <section class="panel engines">
+        <fieldset class="engine-picker">
+          <legend>Engine</legend>
+          <div id="engine-grid" class="engine-grid"></div>
+        </fieldset>
+      </section>
+
+      <section class="panel extras" aria-labelledby="extras-title">
+        <h2 id="extras-title" class="visually-hidden">Settings and diagnostics</h2>
+        <details class="disclosure">
+          <summary>More settings</summary>
+          <div class="disclosure__body">
+            <div class="slider">
+              <label for="intensity">Intensity</label>
+              <input
+                id="intensity"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="50"
+                aria-describedby="intensity-hint"
+              />
+              <p id="intensity-hint" class="hint">
+                Higher turns gentle acceleration into more throttle and holds each gear longer.
+              </p>
+            </div>
+            <div class="slider">
+              <label for="crackle">Pops and crackles</label>
+              <input
+                id="crackle"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="50"
+                aria-describedby="crackle-hint"
+              />
+              <p id="crackle-hint" class="hint">
+                Exhaust pops when you lift off. The middle keeps each engine's own amount.
+              </p>
+            </div>
+            <fieldset class="choice">
+              <legend>Speed units</legend>
+              <div class="choice__options">
+                <label class="choice__option">
+                  <input type="radio" name="units" value="kmh" checked />
+                  <span>km/h</span>
+                </label>
+                <label class="choice__option">
+                  <input type="radio" name="units" value="mph" />
+                  <span>mph</span>
+                </label>
+              </div>
+            </fieldset>
+            <label class="toggle">
+              <input id="auto-start" type="checkbox" />
+              <span>Start the engine when the page opens</span>
+            </label>
+            <div class="slider">
+              <label class="toggle">
+                <input id="background-play" type="checkbox" aria-describedby="background-hint" />
+                <span>Keep playing when I leave the browser (experimental)</span>
+              </label>
+              <p id="background-hint" class="hint">
+                Lists the engine in the car's media player so it can keep going behind the map or
+                camera. The car plays one media source at a time, so this may pause your music.
+              </p>
+            </div>
+          </div>
+        </details>
+
+        <details id="diagnostics" class="disclosure">
+          <summary>Diagnostics</summary>
+          <div class="disclosure__body">
+            <dl class="diagnostics">
+              <div>
+                <dt>GPS</dt>
+                <dd id="diag-gps">Off</dd>
+              </div>
+              <div>
+                <dt>Speed</dt>
+                <dd id="diag-source">–</dd>
+              </div>
+              <div>
+                <dt>Accuracy</dt>
+                <dd id="diag-accuracy">–</dd>
+              </div>
+              <div>
+                <dt>Position updates</dt>
+                <dd id="diag-rate">–</dd>
+              </div>
+              <div>
+                <dt>Last position</dt>
+                <dd id="diag-age">–</dd>
+              </div>
+              <div>
+                <dt>Throttle estimate</dt>
+                <dd id="diag-load">–</dd>
+              </div>
+              <div>
+                <dt>Audio</dt>
+                <dd id="diag-audio">Off</dd>
+              </div>
+              <div>
+                <dt>Audio delay</dt>
+                <dd id="diag-latency">–</dd>
+              </div>
+              <div>
+                <dt>Background play</dt>
+                <dd id="diag-background">Off</dd>
+              </div>
+            </dl>
+            <p class="hint">
+              Revs trail the car by up to one position update plus the audio delay. The car's own
+              audio system adds a little more.
+            </p>
+            <button id="restart-audio" class="btn btn--small" type="button" disabled>
+              No sound? Restart audio
+            </button>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        Set everything up while parked and keep the volume low enough to hear the road. Your
+        location stays on this device.
+      </p>
+      <p>Unofficial personal project, not affiliated with Tesla, Inc.</p>
+    </footer>
+
+    <noscript>This app needs JavaScript to generate engine sounds.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

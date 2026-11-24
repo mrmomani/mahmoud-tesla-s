@@ -1,0 +1,19 @@
+{
+  "name": "Mahmoud Tesla S",
+  "short_name": "Tesla S Sound",
+  "description": "Engine sounds that follow your GPS speed.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

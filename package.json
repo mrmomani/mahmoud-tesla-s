@@ -1,0 +1,28 @@
+{
+  "name": "mahmoud-tesla-s",
+  "version": "0.1.0",
+  "description": "Mahmoud Tesla S: engine sounds that follow your GPS speed, built for the car browser.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build --base ./",
+    "preview": "vite preview",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "npm run typecheck && npm run lint && npm run test"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "private": true
+}

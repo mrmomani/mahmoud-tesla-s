@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="icon-title">
+  <title id="icon-title">Mahmoud Tesla S</title>
+  <rect width="512" height="512" rx="112" fill="#0b0d12"/>
+  <path d="M117.4 370A160 160 0 1 1 394.6 370" fill="none" stroke="#2a3342" stroke-width="40" stroke-linecap="round"/>
+  <path d="M117.4 370A160 160 0 0 1 336 151.4" fill="none" stroke="#e5333b" stroke-width="40" stroke-linecap="round"/>
+  <path d="M256 290L311 194.7" stroke="#f3f5f9" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="256" cy="290" r="26" fill="#f3f5f9"/>
+  <text x="256" y="476" fill="#f3f5f9" font-family="system-ui, sans-serif" font-size="104" font-weight="800" text-anchor="middle">S</text>
+</svg>
