@@ -3,9 +3,11 @@ import { clamp } from '../util/math';
 export interface Fix {
   readonly latitude: number;
   readonly longitude: number;
-  readonly accuracyM: number;
-  /** Ground speed reported by the device; browsers report null when it is unknown. */
+  /** Estimated error radius in metres, or null when the browser gives no usable value. */
+  readonly accuracyM: number | null;
+  /** Ground speed reported by the device; null when it is unknown. */
   readonly speedMps: number | null;
+  /** When the fix arrived, in epoch milliseconds. */
   readonly timestampMs: number;
 }
 
@@ -46,6 +48,16 @@ const EARTH_RADIUS_M = 6_371_008.8;
 const EXTRAPOLATION_GAIN = 0.8;
 /** Roughly 1.1 g, beyond the strongest acceleration or braking a road car manages. */
 const MAX_TREND_KMH_PER_S = 40;
+/** Error radius assumed for fixes that come without an accuracy estimate. */
+const UNKNOWN_ACCURACY_M = 15;
+/** Movement at least this fast, and well beyond the error radius, outweighs a reported 0. */
+const MOVING_OVERRIDE_KMH = 10;
+
+interface DerivedSpeed {
+  readonly kmh: number;
+  /** The car has clearly moved: faster than GPS jitter could explain. */
+  readonly moving: boolean;
+}
 
 type Point = Pick<Fix, 'latitude' | 'longitude'>;
 
@@ -62,8 +74,9 @@ export function haversineMeters(a: Point, b: Point): number {
 /**
  * Turns a stream of GPS fixes into a speed. Prefers the device-reported speed and falls back
  * to distance over time, filtering inaccurate fixes, jitter while parked, and impossible spikes.
- * Between fixes it projects the recent speed trend forward, so the engine does not lag a whole
- * GPS interval behind the car.
+ * A reported standstill is overruled when the positions clearly show the car moving, because
+ * some browsers send 0 rather than "unknown". Between fixes it projects the recent speed trend
+ * forward, so the engine does not lag a whole GPS interval behind the car.
  */
 export class SpeedEstimator {
   private readonly options: SpeedEstimatorOptions;
@@ -75,6 +88,8 @@ export class SpeedEstimator {
   private fixIntervalMs: number | null = null;
   private accuracy: number | null = null;
   private kind: SpeedSourceKind = 'none';
+  private reportedKmh: number | null = null;
+  private derivedKmh: number | null = null;
 
   constructor(options: Partial<SpeedEstimatorOptions> = {}) {
     this.options = { ...DEFAULT_SPEED_OPTIONS, ...options };
@@ -93,6 +108,16 @@ export class SpeedEstimator {
     return this.fixIntervalMs === null ? null : 1000 / this.fixIntervalMs;
   }
 
+  /** The speed the device reported in the latest fix, or null when it reported none. */
+  get lastReportedKmh(): number | null {
+    return this.reportedKmh;
+  }
+
+  /** Speed worked out from recent positions, or null until there are enough of them. */
+  get lastDerivedKmh(): number | null {
+    return this.derivedKmh;
+  }
+
   reset(): void {
     this.history = [];
     this.speed = 0;
@@ -102,6 +127,8 @@ export class SpeedEstimator {
     this.fixIntervalMs = null;
     this.accuracy = null;
     this.kind = 'none';
+    this.reportedKmh = null;
+    this.derivedKmh = null;
   }
 
   update(fix: Fix): void {
@@ -116,22 +143,25 @@ export class SpeedEstimator {
     }
     this.lastFixMs = fix.timestampMs;
     this.accuracy = fix.accuracyM;
-    const accurate = fix.accuracyM <= this.options.maxAccuracyM;
+    const accurate = fix.accuracyM === null || fix.accuracyM <= this.options.maxAccuracyM;
     if (accurate) this.remember(fix);
+    const derived = accurate ? this.derive(fix) : null;
+    this.derivedKmh = derived?.kmh ?? null;
 
     const reported = fix.speedMps;
     if (reported !== null && Number.isFinite(reported) && reported >= 0) {
-      this.accept(reported * 3.6, this.options.reportedDeadbandKmh, fix.timestampMs, 'device');
+      const reportedKmh = reported * 3.6;
+      this.reportedKmh = reportedKmh;
+      if (reportedKmh < this.options.reportedDeadbandKmh && derived?.moving) {
+        this.accept(derived.kmh, this.options.derivedDeadbandKmh, fix.timestampMs, 'derived');
+      } else {
+        this.accept(reportedKmh, this.options.reportedDeadbandKmh, fix.timestampMs, 'device');
+      }
       return;
     }
-    if (!accurate) return;
-
-    const reference = this.history[0];
-    if (!reference) return;
-    const baselineMs = fix.timestampMs - reference.timestampMs;
-    if (baselineMs < this.options.minBaselineMs) return;
-    const kmh = (haversineMeters(reference, fix) / (baselineMs / 1000)) * 3.6;
-    this.accept(kmh, this.options.derivedDeadbandKmh, fix.timestampMs, 'derived');
+    this.reportedKmh = null;
+    if (derived)
+      this.accept(derived.kmh, this.options.derivedDeadbandKmh, fix.timestampMs, 'derived');
   }
 
   speedKmh(nowMs: number): number {
@@ -157,6 +187,21 @@ export class SpeedEstimator {
   private remember(fix: Fix): void {
     const oldestMs = fix.timestampMs - this.options.windowMs;
     this.history = [...this.history.filter((entry) => entry.timestampMs >= oldestMs), fix];
+  }
+
+  /** Speed from the distance covered since the oldest recent fix, once enough time has passed. */
+  private derive(fix: Fix): DerivedSpeed | null {
+    const reference = this.history[0];
+    if (!reference) return null;
+    const baselineMs = fix.timestampMs - reference.timestampMs;
+    if (baselineMs < this.options.minBaselineMs) return null;
+    const distanceM = haversineMeters(reference, fix);
+    const kmh = (distanceM / (baselineMs / 1000)) * 3.6;
+    const errorM = Math.max(
+      reference.accuracyM ?? UNKNOWN_ACCURACY_M,
+      fix.accuracyM ?? UNKNOWN_ACCURACY_M,
+    );
+    return { kmh, moving: kmh >= MOVING_OVERRIDE_KMH && distanceM > 2 * errorM };
   }
 
   private accept(kmh: number, deadbandKmh: number, atMs: number, kind: SpeedSourceKind): void {

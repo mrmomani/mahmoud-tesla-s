@@ -10,6 +10,8 @@ import { createView } from './ui/view';
 
 /** The crackle slider's midpoint plays each engine's own amount of pops. */
 const CRACKLE_MIDPOINT = 50;
+/** Commit the deployed build came from, shown in Diagnostics; local builds show "dev". */
+const APP_VERSION = import.meta.env.VITE_APP_VERSION?.slice(0, 7) || 'dev';
 
 const storage = getLocalStorage();
 let settings: Settings = loadSettings(
@@ -23,42 +25,47 @@ let powering = false;
 const synth = new EngineSynth(initialProfile);
 const wakeLock = new ScreenWakeLock();
 
-const view = createView(document, PROFILES, {
-  onPower: () => void togglePower(),
-  onRev: (held) => controller.setRev(held),
-  onPedal: (pedal, held) => controller.setPedal(pedal, held),
-  onEngine: (id) => {
-    currentProfile = findProfile(id);
-    controller.setProfile(currentProfile);
-    view.selectEngine(currentProfile);
-    if (controller.running) showNowPlaying(currentProfile.name);
-    persist({ engineId: currentProfile.id });
+const view = createView(
+  document,
+  PROFILES,
+  {
+    onPower: () => void togglePower(),
+    onRev: (held) => controller.setRev(held),
+    onPedal: (pedal, held) => controller.setPedal(pedal, held),
+    onEngine: (id) => {
+      currentProfile = findProfile(id);
+      controller.setProfile(currentProfile);
+      view.selectEngine(currentProfile);
+      if (controller.running) showNowPlaying(currentProfile.name);
+      persist({ engineId: currentProfile.id });
+    },
+    onMode: (mode) => controller.setMode(mode),
+    onVolume: (percent, committed) => {
+      synth.setVolume(percent / 100);
+      if (committed) persist({ volume: percent });
+    },
+    onMute: () => {
+      synth.setMuted(!synth.isMuted);
+      view.setMuted(synth.isMuted);
+    },
+    onIntensity: (percent, committed) => {
+      controller.setIntensity(percent / 100);
+      if (committed) persist({ intensity: percent });
+    },
+    onCrackle: (percent, committed) => {
+      synth.setCrackle(percent / CRACKLE_MIDPOINT);
+      if (committed) persist({ crackle: percent });
+    },
+    onUnits: (units) => persist({ units }),
+    onAutoStart: (autoStart) => persist({ autoStart }),
+    onBackgroundPlay: (backgroundPlay) => {
+      synth.setBackgroundPlay(backgroundPlay);
+      persist({ backgroundPlay });
+    },
+    onRestartAudio: () => void synth.restart(),
   },
-  onMode: (mode) => controller.setMode(mode),
-  onVolume: (percent, committed) => {
-    synth.setVolume(percent / 100);
-    if (committed) persist({ volume: percent });
-  },
-  onMute: () => {
-    synth.setMuted(!synth.isMuted);
-    view.setMuted(synth.isMuted);
-  },
-  onIntensity: (percent, committed) => {
-    controller.setIntensity(percent / 100);
-    if (committed) persist({ intensity: percent });
-  },
-  onCrackle: (percent, committed) => {
-    synth.setCrackle(percent / CRACKLE_MIDPOINT);
-    if (committed) persist({ crackle: percent });
-  },
-  onUnits: (units) => persist({ units }),
-  onAutoStart: (autoStart) => persist({ autoStart }),
-  onBackgroundPlay: (backgroundPlay) => {
-    synth.setBackgroundPlay(backgroundPlay);
-    persist({ backgroundPlay });
-  },
-  onRestartAudio: () => void synth.restart(),
-});
+  APP_VERSION,
+);
 
 const controller = new EngineController({
   sound: synth,

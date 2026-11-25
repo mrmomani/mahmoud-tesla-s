@@ -47,10 +47,15 @@ export interface View {
 
 const DIAGNOSTIC_FIELDS = [
   'gps',
-  'source',
-  'accuracy',
+  'fixes',
   'rate',
   'age',
+  'accuracy',
+  'reported',
+  'derived',
+  'source',
+  'clock',
+  'error',
   'load',
   'audio',
   'latency',
@@ -83,8 +88,8 @@ const GPS_STATES: Record<GpsStatus, string> = {
 
 const SPEED_SOURCES: Record<SpeedSourceKind, string> = {
   none: DASH,
-  device: 'Reported by the GPS',
-  derived: 'Calculated from positions',
+  device: 'Reported speed',
+  derived: 'Speed from positions',
 };
 
 const UNIT_LABELS: Record<SpeedUnit, { readonly short: string; readonly long: string }> = {
@@ -165,24 +170,47 @@ export function describeStatus(telemetry: Telemetry): Message {
 }
 
 /** Plain-language readings for checking GPS and audio in the car. */
-export function describeDiagnostics(telemetry: Telemetry): Diagnostics {
+export function describeDiagnostics(telemetry: Telemetry, units: SpeedUnit = 'kmh'): Diagnostics {
   const { gps, audio } = telemetry;
   const gpsLive = telemetry.mode === 'gps' && gps.status !== 'off';
   let gpsState = GPS_STATES[gps.status];
   if (telemetry.mode !== 'gps') gpsState = `Not used in ${MODE_NAMES[telemetry.mode]}`;
   else if (gps.status === 'active' && gps.stale) gpsState = 'No recent position';
+  const received = gps.fixes.live + gps.fixes.fallback;
+  const speed = (kmh: number): string => `${formatSpeed(kmh, units)} ${UNIT_LABELS[units].short}`;
+
+  let reported = DASH;
+  if (gpsLive && received > 0) {
+    reported = gps.reportedKmh === null ? 'Not provided' : speed(gps.reportedKmh);
+  }
 
   return {
     gps: gpsState,
-    source: gpsLive ? SPEED_SOURCES[gps.source] : DASH,
-    accuracy: gpsLive && gps.accuracyM !== null ? `±${formatDistance(gps.accuracyM)}` : DASH,
+    fixes: gpsLive ? `${received} (${gps.fixes.live} live, ${gps.fixes.fallback} fallback)` : DASH,
     rate: gpsLive && gps.updateHz !== null ? `${gps.updateHz.toFixed(1)} per second` : DASH,
     age: gpsLive && gps.fixAgeMs !== null ? `${(gps.fixAgeMs / 1000).toFixed(1)} s ago` : DASH,
+    accuracy: gpsLive && gps.accuracyM !== null ? `±${formatDistance(gps.accuracyM)}` : DASH,
+    reported,
+    derived: gpsLive && gps.derivedKmh !== null ? speed(gps.derivedKmh) : DASH,
+    source: gpsLive ? SPEED_SOURCES[gps.source] : DASH,
+    clock: gpsLive && gps.clockOffsetMs !== null ? describeClock(gps.clockOffsetMs) : DASH,
+    error: gpsLive ? (gps.lastError ?? 'None') : DASH,
     load: telemetry.running ? `${Math.round(telemetry.load * 100)}%` : DASH,
     audio: describeAudio(audio),
     latency: audio.latencyMs === null ? DASH : `${audio.latencyMs} ms in the browser`,
     background: BACKGROUND_STATES[audio.background],
   };
+}
+
+/** The app stamps fixes with its own clock, so a mismatch here is only reported, not used. */
+function describeClock(offsetMs: number): string {
+  const seconds = Math.abs(offsetMs) / 1000;
+  if (seconds < 2) return 'In sync';
+  let amount = `${Math.round(seconds / 86_400)} days`;
+  if (seconds < 120) amount = `${seconds.toFixed(1)} s`;
+  else if (seconds < 7200) amount = `${Math.round(seconds / 60)} min`;
+  else if (seconds < 172_800) amount = `${(seconds / 3600).toFixed(1)} h`;
+  return `Off by ${amount} (not used)`;
 }
 
 function describeAudio(audio: AudioSnapshot): string {
@@ -222,6 +250,7 @@ export function createView(
   doc: Document,
   profiles: readonly EngineProfile[],
   handlers: ViewHandlers,
+  appVersion: string,
 ): View {
   const speed = byId(doc, 'speed', HTMLOutputElement);
   const speedUnit = byId(doc, 'speed-unit', HTMLSpanElement);
@@ -248,6 +277,7 @@ export function createView(
   const diagnosticCells = DIAGNOSTIC_FIELDS.map(
     (field) => [field, byId(doc, `diag-${field}`, HTMLElement)] as const,
   );
+  setText(byId(doc, 'diag-version', HTMLElement), appVersion);
   const modeInputs = Array.from(doc.querySelectorAll<HTMLInputElement>('input[name="mode"]'));
   const unitInputs = Array.from(doc.querySelectorAll<HTMLInputElement>('input[name="units"]'));
 
@@ -272,7 +302,7 @@ export function createView(
   };
 
   const renderDiagnostics = (telemetry: Telemetry): void => {
-    const values = describeDiagnostics(telemetry);
+    const values = describeDiagnostics(telemetry, units);
     for (const [field, cell] of diagnosticCells) setText(cell, values[field]);
   };
 
@@ -281,7 +311,10 @@ export function createView(
     for (const input of unitInputs) input.checked = input.value === next;
     setText(speedUnit, UNIT_LABELS[next].short);
     speed.setAttribute('aria-label', UNIT_LABELS[next].long);
-    if (latest) setText(speed, formatSpeed(latest.speedKmh, next));
+    if (latest) {
+      setText(speed, formatSpeed(latest.speedKmh, next));
+      if (diagnostics.open) renderDiagnostics(latest);
+    }
   };
 
   power.addEventListener('click', () => handlers.onPower());

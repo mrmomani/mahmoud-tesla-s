@@ -11,6 +11,11 @@ function gps(overrides: Partial<GpsSnapshot> = {}): GpsSnapshot {
     updateHz: 1,
     fixAgeMs: 400,
     source: 'device',
+    fixes: { live: 12, fallback: 3 },
+    reportedKmh: 50,
+    derivedKmh: 48,
+    clockOffsetMs: 300,
+    lastError: null,
     ...overrides,
   };
 }
@@ -68,6 +73,24 @@ describe('describeDiagnostics', () => {
     expect(readings.rate).toBe('1.0 per second');
     expect(readings.age).toBe('0.4 s ago');
     expect(readings.accuracy).toBe('±8 m');
+    expect(readings.fixes).toBe('15 (12 live, 3 fallback)');
+    expect(readings.clock).toBe('In sync');
+    expect(readings.error).toBe('None');
+  });
+
+  it('shows raw speeds in the chosen units and says when the browser reports none', () => {
+    expect(describeDiagnostics(telemetry(), 'mph').reported).toBe('31 mph');
+    expect(describeDiagnostics(telemetry(), 'mph').derived).toBe('30 mph');
+    expect(describeDiagnostics(telemetry({ gps: gps({ reportedKmh: null }) })).reported).toBe(
+      'Not provided',
+    );
+  });
+
+  it('flags a browser clock that is far off', () => {
+    const offByHours = gps({ clockOffsetMs: -3 * 3600 * 1000 });
+    expect(describeDiagnostics(telemetry({ gps: offByHours })).clock).toBe(
+      'Off by 3.0 h (not used)',
+    );
   });
 
   it('hides old GPS readings in the other modes', () => {
@@ -75,6 +98,8 @@ describe('describeDiagnostics', () => {
     expect(readings.gps).toBe('Not used in Demo drive');
     expect(readings.rate).toBe('–');
     expect(readings.age).toBe('–');
+    expect(readings.fixes).toBe('–');
+    expect(readings.reported).toBe('–');
   });
 });
 

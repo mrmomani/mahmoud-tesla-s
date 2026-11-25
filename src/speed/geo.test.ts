@@ -8,7 +8,11 @@ function fix(overrides: Partial<Fix> & Pick<Fix, 'timestampMs'>): Fix {
 }
 
 /** Feeds one fix per second, moving north by `metersPerSecond`. */
-function driveNorth(estimator: SpeedEstimator, metersPerSecond: number, accuracyM = 5): void {
+function driveNorth(
+  estimator: SpeedEstimator,
+  metersPerSecond: number,
+  accuracyM: number | null = 5,
+): void {
   const stepDegrees = metersPerSecond / METERS_PER_DEGREE_LATITUDE;
   for (let second = 0; second <= 3; second++) {
     estimator.update(
@@ -53,6 +57,41 @@ describe('SpeedEstimator', () => {
     const estimator = new SpeedEstimator();
     driveNorth(estimator, 25, 200);
     expect(estimator.speedKmh(3000)).toBe(0);
+  });
+
+  it('derives speed from positions that come without an accuracy estimate', () => {
+    const estimator = new SpeedEstimator();
+    driveNorth(estimator, 25, null);
+    expect(estimator.speedKmh(3000)).toBeCloseTo(90, 0);
+  });
+
+  it('trusts clear movement over a reported standstill', () => {
+    const estimator = new SpeedEstimator();
+    const stepDegrees = 25 / METERS_PER_DEGREE_LATITUDE;
+    for (let second = 0; second <= 3; second++) {
+      estimator.update(
+        fix({ timestampMs: second * 1000, latitude: 31.95 + second * stepDegrees, speedMps: 0 }),
+      );
+    }
+    expect(estimator.speedKmh(3000)).toBeCloseTo(90, 0);
+    expect(estimator.source).toBe('derived');
+    expect(estimator.lastReportedKmh).toBe(0);
+  });
+
+  it('keeps a reported standstill when only GPS jitter moves the position', () => {
+    const estimator = new SpeedEstimator();
+    const jitterDegrees = 3 / METERS_PER_DEGREE_LATITUDE;
+    for (let second = 0; second <= 3; second++) {
+      estimator.update(
+        fix({
+          timestampMs: second * 1000,
+          latitude: 31.95 + (second % 2) * jitterDegrees,
+          speedMps: 0,
+        }),
+      );
+    }
+    expect(estimator.speedKmh(3000)).toBe(0);
+    expect(estimator.source).toBe('device');
   });
 
   it('rejects impossible speed spikes', () => {

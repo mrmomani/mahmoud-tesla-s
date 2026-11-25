@@ -20,6 +20,11 @@ function setup(mode: SpeedMode, gpsSpeedKmh = 0) {
       updateHz: 1,
       fixAgeMs: 200,
       source: 'device',
+      fixes: { live: 1, fallback: 0 },
+      reportedKmh: gpsSpeedKmh,
+      derivedKmh: null,
+      clockOffsetMs: 0,
+      lastError: null,
     }),
   };
   const controller = new EngineController({

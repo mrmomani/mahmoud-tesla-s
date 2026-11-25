@@ -13,6 +13,10 @@ Unofficial personal project, not affiliated with Tesla, Inc.
   filtering for inaccurate fixes, parked-car jitter, and impossible spikes. Between position
   updates the app projects the recent speed trend forward (up to 1.5 s) so the revs lag the car
   less.
+- **Built for car browsers.** Car browsers have shipped position updates that stall or carry
+  timestamps from another clock. The app stamps each fix with its own clock when it arrives, asks
+  for the position directly once the live updates go quiet, and trusts the positions over a
+  reported speed of 0 when they clearly show the car moving.
 - **Seven synthesized engines.** V8 muscle, V10 supercar, V12 grand tourer, inline-6 turbo,
   flat-6, inline-4 hot hatch, and twin-rotor. There are no audio files; everything is generated
   with the Web Audio API, so the app is tiny and works offline.
@@ -26,8 +30,9 @@ Unofficial personal project, not affiliated with Tesla, Inc.
 - **More settings.** **Intensity** (how eagerly acceleration turns into throttle, which also holds
   gears longer), **Pops and crackles** on lift-off, speed units, starting the engine when the page
   opens, and experimental background play.
-- **Diagnostics.** GPS status, speed source, accuracy, update rate, age of the last position,
-  throttle estimate, audio state and delay, plus a **No sound? Restart audio** button.
+- **Diagnostics.** GPS status, fixes received, update rate, age of the last position, accuracy, the
+  reported speed and the speed from positions, the GPS clock, the last GPS error, throttle
+  estimate, audio state and delay, and the app version, plus a **No sound? Restart audio** button.
 - **Autoplay-safe.** If the browser holds the sound back until the screen is touched, or pauses it
   while the page is hidden, the status line says so and any tap brings it back.
 - **Offline and remembered.** A service worker keeps the app available after the first visit. The
@@ -65,7 +70,10 @@ vehicles, and follow local laws.
 2. Pause other media sources (radio, Spotify, Bluetooth phone), then tap the page.
 3. Open **Diagnostics**: if **Audio** is not **Playing**, tap **No sound? Restart audio**.
 4. If GPS shows **Permission denied**, allow location for the site in the browser settings.
-5. Still silent: restart the touchscreen while parked, then reopen the page.
+5. If the speed stays at 0 while driving, keep the browser on screen and check **Diagnostics**:
+   **Fixes received** should keep rising, and **Reported speed** or **Speed from positions**
+   should follow the car. Note which one stops.
+6. Still silent: restart the touchscreen while parked, then reopen the page.
 
 ### Keyboard shortcuts
 
@@ -137,7 +145,7 @@ GPS fix ──► SpeedEstimator ──► EngineController ──► drivetrain
 | `src/engine/synth.ts`      | Web Audio synthesizer, autoplay recovery, and audio restart             |
 | `src/engine/keepAlive.ts`  | Silent media loop for experimental background play                      |
 | `src/speed/geo.ts`         | Pure GPS speed estimation (filtering, trend projection, staleness)      |
-| `src/speed/gpsSource.ts`   | Geolocation adapter with permission and error handling                  |
+| `src/speed/gpsSource.ts`   | Geolocation adapter: live watch, fallback requests, and error handling  |
 | `src/speed/demo.ts`        | Simulated drive profile                                                 |
 | `src/speed/testDrive.ts`   | Pedal-driven speed physics for **Test drive**                           |
 | `src/app/controller.ts`    | Simulation loop that ties speed, drivetrain, sound, and gauges together |
